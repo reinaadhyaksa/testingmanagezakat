@@ -214,7 +214,7 @@ const Dashboard = () => {
         }))
     }
 
-    // Reset filter dusun jika dusun yang dipilih tidak ada dalam data yang difilter
+    // Reset filter dusun jika dusun yang dipilih tidak ada dalam data yang tersedia
     useEffect(() => {
         if (filters.dusun && filters.dusun !== 'Semua Dusun') {
             const dusunExists = pemasukanData.some(item => item.dusun === filters.dusun);
@@ -227,11 +227,28 @@ const Dashboard = () => {
         }
     }, [pemasukanData, filters.dusun]);
 
+    // Update judul bulan berdasarkan filter
+    useEffect(() => {
+        if (filters.bulan) {
+            // Jika ada filter bulan, gunakan bulan yang dipilih
+            const selectedBulan = listBulan.find(b => b.value === filters.bulan);
+            const now = new Date();
+            const year = now.getFullYear();
+            setCurrentMonth(`${selectedBulan?.label} ${year}`);
+        } else {
+            // Jika tidak ada filter bulan, gunakan bulan saat ini
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long' };
+            setCurrentMonth(now.toLocaleDateString('id-ID', options));
+        }
+    }, [filters.bulan]);
+
     // Setup realtime subscription dan initial data
     useEffect(() => {
-        const now = new Date()
-        const options = { year: 'numeric', month: 'long' }
-        setCurrentMonth(now.toLocaleDateString('id-ID', options))
+        // Set judul bulan awal
+        const now = new Date();
+        const options = { year: 'numeric', month: 'long' };
+        setCurrentMonth(now.toLocaleDateString('id-ID', options));
 
         fetchAllData()
 
@@ -373,7 +390,7 @@ const Dashboard = () => {
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">
-                    Dashboard Ringkasan - {currentMonth}
+                    Dashboard Ringkasan {filters.bulan ? `- ${currentMonth}` : `- ${currentMonth}`}
                 </h2>
                 <div className="flex items-center space-x-3 sm:space-x-4">
                     {loading && (
