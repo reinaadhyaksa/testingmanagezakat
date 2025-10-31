@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../utils/supabase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -33,8 +33,7 @@ const Dashboard = () => {
         dusun: ''
     })
 
-    // List dusun dan bulan
-    const listDusun = ['Semua Dusun', 'Dusun Krajan', 'Dusun Sumber', 'Dusun Sukorejo', 'Dusun Tambak', 'Dusun Baru']
+    // List bulan
     const listBulan = [
         { value: '', label: 'Semua Bulan' },
         { value: '01', label: 'Januari' },
@@ -129,6 +128,22 @@ const Dashboard = () => {
         return parseInt(currencyString.replace(/[^\d]/g, '')) || 0
     }
 
+    // Dapatkan list dusun dari data pemasukan yang tersedia
+    const listDusun = useMemo(() => {
+        const dusunSet = new Set();
+        pemasukanData.forEach(item => {
+            if (item.dusun) {
+                dusunSet.add(item.dusun);
+            }
+        });
+
+        // Urutkan dusun secara alfabetis
+        const dusunArray = Array.from(dusunSet).sort();
+
+        // Tambahkan opsi "Semua Dusun" di awal
+        return ['Semua Dusun', ...dusunArray];
+    }, [pemasukanData]);
+
     // Filter data berdasarkan bulan dan dusun
     const filteredPemasukan = pemasukanData.filter(item => {
         // Filter berdasarkan bulan
@@ -198,6 +213,19 @@ const Dashboard = () => {
             [key]: value
         }))
     }
+
+    // Reset filter dusun jika dusun yang dipilih tidak ada dalam data yang difilter
+    useEffect(() => {
+        if (filters.dusun && filters.dusun !== 'Semua Dusun') {
+            const dusunExists = pemasukanData.some(item => item.dusun === filters.dusun);
+            if (!dusunExists && pemasukanData.length > 0) {
+                setFilters(prev => ({
+                    ...prev,
+                    dusun: 'Semua Dusun'
+                }));
+            }
+        }
+    }, [pemasukanData, filters.dusun]);
 
     // Setup realtime subscription dan initial data
     useEffect(() => {
@@ -406,12 +434,19 @@ const Dashboard = () => {
                             onChange={(e) => handleFilterChange('dusun', e.target.value)}
                             className="w-full px-3 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white transition-colors duration-200 text-sm sm:text-base"
                         >
-                            {listDusun.map(dusun => (
-                                <option key={dusun} value={dusun}>
-                                    {dusun}
-                                </option>
-                            ))}
+                            {listDusun.length === 0 ? (
+                                <option value="">Loading dusun...</option>
+                            ) : (
+                                listDusun.map(dusun => (
+                                    <option key={dusun} value={dusun}>
+                                        {dusun}
+                                    </option>
+                                ))
+                            )}
                         </select>
+                        <p className="text-xs text-slate-500 mt-1">
+                            {listDusun.length - 1} dusun tersedia dalam data
+                        </p>
                     </div>
                 </div>
             </div>
@@ -506,6 +541,18 @@ const Dashboard = () => {
                         </table>
                     </div>
                 )}
+            </div>
+
+            {/* Informasi Filter */}
+            <div className="mt-4 text-sm text-slate-600 flex items-center bg-green-50 px-4 py-3 rounded-lg border border-green-100">
+                <FontAwesomeIcon icon={faChartBar} className="mr-2 text-green-700" />
+                <p>
+                    Menampilkan data untuk: {filters.bulan ? listBulan.find(b => b.value === filters.bulan)?.label : 'Semua Bulan'} •
+                    {filters.dusun ? ` ${filters.dusun}` : ' Semua Dusun'} •
+                    Total {filteredPemasukan.length} transaksi pemasukan •
+                    {listDusun.length - 1} dusun tersedia
+                    {refreshing && ' • Memperbarui data...'}
+                </p>
             </div>
         </section>
     )
