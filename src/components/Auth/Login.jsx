@@ -48,36 +48,36 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
-                    <div className="w-20 h-20 bg-green-700 rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-700 rounded-2xl flex items-center justify-center shadow-lg">
                         <FontAwesomeIcon
                             icon={faHandHoldingDollar}
-                            className="w-10 h-10 text-white"
+                            className="w-8 h-8 sm:w-10 sm:h-10 text-white"
                         />
                     </div>
                 </div>
-                <h2 className="mt-6 text-center text-3xl font-bold text-slate-800">
+                <h2 className="mt-4 sm:mt-6 text-center text-2xl sm:text-3xl font-bold text-slate-800">
                     Sistem Manajemen Zakat & Infaq
                 </h2>
-                <p className="mt-2 text-center text-sm text-slate-600">
+                <p className="mt-2 text-center text-xs sm:text-sm text-slate-600">
                     Masuk ke akun administrator Anda
                 </p>
             </div>
 
-            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-green-100">
-                    <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="mt-6 sm:mt-8 mx-auto w-full max-w-md">
+                <div className="bg-white py-6 sm:py-8 px-4 sm:px-6 shadow-xl rounded-2xl border border-green-100">
+                    <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
                         {error && (
-                            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                            <div className="bg-red-50 border border-red-200 rounded-xl p-3 sm:p-4">
                                 <div className="flex items-start">
                                     <FontAwesomeIcon
                                         icon={faExclamationTriangle}
-                                        className="h-5 w-5 text-red-500 mt-0.5 mr-3 flex-shrink-0"
+                                        className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 mt-0.5 mr-2 sm:mr-3 flex-shrink-0"
                                     />
-                                    <div>
-                                        <h3 className="text-sm font-medium text-red-800">
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-xs sm:text-sm font-medium text-red-800 break-words">
                                             {error}
                                         </h3>
                                     </div>
@@ -87,7 +87,7 @@ const Login = () => {
 
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
-                                <FontAwesomeIcon icon={faEnvelope} className="mr-2 text-green-600" />
+                                <FontAwesomeIcon icon={faEnvelope} className="mr-2 text-green-600 text-sm sm:text-base" />
                                 Alamat Email
                             </label>
                             <div className="mt-1">
@@ -99,7 +99,7 @@ const Login = () => {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="appearance-none block w-full px-4 py-3 border border-green-200 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm transition-colors duration-200 bg-white"
+                                    className="appearance-none block w-full px-3 sm:px-4 py-2 sm:py-3 border border-green-200 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:text-base transition-colors duration-200 bg-white"
                                     placeholder="adminjulio@admin.com"
                                 />
                             </div>
@@ -107,7 +107,7 @@ const Login = () => {
 
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
-                                <FontAwesomeIcon icon={faLock} className="mr-2 text-green-600" />
+                                <FontAwesomeIcon icon={faLock} className="mr-2 text-green-600 text-sm sm:text-base" />
                                 Kata Sandi
                             </label>
                             <div className="mt-1">
@@ -119,7 +119,7 @@ const Login = () => {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="appearance-none block w-full px-4 py-3 border border-green-200 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm transition-colors duration-200 bg-white"
+                                    className="appearance-none block w-full px-3 sm:px-4 py-2 sm:py-3 border border-green-200 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:text-base transition-colors duration-200 bg-white"
                                     placeholder="managezakat2025"
                                 />
                             </div>
@@ -129,16 +129,16 @@ const Login = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm font-medium text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 transform hover:scale-[1.02]"
+                                className="w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm sm:text-base font-medium text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
                             >
                                 {loading ? (
                                     <div className="flex items-center">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
-                                        Memproses...
+                                        <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white mr-2 sm:mr-3"></div>
+                                        <span className="text-xs sm:text-sm">Memproses...</span>
                                     </div>
                                 ) : (
-                                    <span className="flex items-center">
-                                        <FontAwesomeIcon icon={faLock} className="w-4 h-4 mr-2" />
+                                    <span className="flex items-center text-xs sm:text-sm">
+                                        <FontAwesomeIcon icon={faLock} className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                                         Masuk ke Sistem
                                     </span>
                                 )}
@@ -146,24 +146,28 @@ const Login = () => {
                         </div>
 
                         {/* Informasi Login */}
-                        <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-green-50 rounded-xl border border-green-200">
                             <div className="flex items-start">
                                 <FontAwesomeIcon
                                     icon={faInfoCircle}
-                                    className="h-5 w-5 text-green-600 mt-0.5 mr-3 flex-shrink-0"
+                                    className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mt-0.5 mr-2 sm:mr-3 flex-shrink-0"
                                 />
-                                <div>
-                                    <h3 className="text-sm font-medium text-green-800 mb-2">
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-xs sm:text-sm font-medium text-green-800 mb-2">
                                         Informasi Login Demo
                                     </h3>
-                                    <div className="text-sm text-green-700 space-y-1">
-                                        <div className="flex items-center">
-                                            <span className="font-medium w-20">Email:</span>
-                                            <span className="font-mono bg-green-100 px-2 py-1 rounded">adminjulio@admin.com</span>
+                                    <div className="text-xs sm:text-sm text-green-700 space-y-1 sm:space-y-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                            <span className="font-medium w-16 sm:w-20 text-xs sm:text-sm">Email:</span>
+                                            <span className="font-mono bg-green-100 px-2 py-1 rounded text-xs sm:text-sm break-all">
+                                                adminjulio@admin.com
+                                            </span>
                                         </div>
-                                        <div className="flex items-center">
-                                            <span className="font-medium w-20">Password:</span>
-                                            <span className="font-mono bg-green-100 px-2 py-1 rounded">managezakat2025</span>
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                            <span className="font-medium w-16 sm:w-20 text-xs sm:text-sm">Password:</span>
+                                            <span className="font-mono bg-green-100 px-2 py-1 rounded text-xs sm:text-sm break-all">
+                                                managezakat2025
+                                            </span>
                                         </div>
                                     </div>
                                     <p className="text-xs text-green-600 mt-2 italic">
@@ -174,7 +178,7 @@ const Login = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="text-center pt-4 border-t border-green-100">
+                        <div className="text-center pt-3 sm:pt-4 border-t border-green-100">
                             <p className="text-xs text-slate-500">
                                 Sistem Manajemen Zakat & Infaq - Transparan & Terpercaya
                             </p>
