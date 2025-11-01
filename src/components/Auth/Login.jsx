@@ -5,7 +5,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faHandHoldingDollar,
     faExclamationTriangle,
-    faInfoCircle,
     faLock,
     faEnvelope
 } from '@fortawesome/free-solid-svg-icons';
@@ -19,7 +18,6 @@ const Login = () => {
     const { login, user } = useAuth();
     const navigate = useNavigate();
 
-    // Redirect jika sudah login
     useEffect(() => {
         if (user) {
             navigate('/dashboard');
@@ -38,7 +36,6 @@ const Login = () => {
                 throw error;
             }
 
-            // Login berhasil, redirect ke dashboard
             navigate('/dashboard');
         } catch (error) {
             setError(error.message || 'Login gagal. Silakan coba lagi.');
@@ -145,39 +142,6 @@ const Login = () => {
                             </button>
                         </div>
 
-                        {/* Informasi Login */}
-                        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-green-50 rounded-xl border border-green-200">
-                            <div className="flex items-start">
-                                <FontAwesomeIcon
-                                    icon={faInfoCircle}
-                                    className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mt-0.5 mr-2 sm:mr-3 flex-shrink-0"
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="text-xs sm:text-sm font-medium text-green-800 mb-2">
-                                        Informasi Login Demo
-                                    </h3>
-                                    <div className="text-xs sm:text-sm text-green-700 space-y-1 sm:space-y-2">
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                                            <span className="font-medium w-16 sm:w-20 text-xs sm:text-sm">Email:</span>
-                                            <span className="font-mono bg-green-100 px-2 py-1 rounded text-xs sm:text-sm break-all">
-                                                adminjulio@admin.com
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                                            <span className="font-medium w-16 sm:w-20 text-xs sm:text-sm">Password:</span>
-                                            <span className="font-mono bg-green-100 px-2 py-1 rounded text-xs sm:text-sm break-all">
-                                                managezakat2025
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-green-600 mt-2 italic">
-                                        Gunakan kredensial di atas untuk mengakses sistem demo
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Footer */}
                         <div className="text-center pt-3 sm:pt-4 border-t border-green-100">
                             <p className="text-xs text-slate-500">
                                 Sistem Manajemen Zakat & Infaq - Transparan & Terpercaya
