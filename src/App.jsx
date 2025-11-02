@@ -13,6 +13,7 @@ import Pengaturan from './components/Admin/Pengaturan'
 import Login from './components/Auth/Login'
 import { AuthProvider, useAuth } from './components/Auth/AuthContext'
 import { Loading } from './components/Loading'
+import KegiatanTerkini from './components/pages/Kegiatan'
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -54,7 +55,6 @@ function AppContent() {
         {/* Redirect root path ke /beranda */}
         <Route path="/" element={<Navigate to="/beranda" replace />} />
 
-        {/* Halaman beranda tanpa proteksi dengan header beranda */}
         <Route path="/beranda" element={
           <PublicLayout>
             <Beranda />
@@ -65,6 +65,12 @@ function AppContent() {
         <Route path="/login" element={
           <PublicLayout>
             <Login />
+          </PublicLayout>
+        } />
+
+        <Route path="/kegiatan-lembaga" element={
+          <PublicLayout>
+            <KegiatanTerkini />
           </PublicLayout>
         } />
 

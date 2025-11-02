@@ -9,7 +9,6 @@ import { CLOUDINARY_NAME, CLOUDINARY_PRESET } from '../../utils/data'
 const PemasukanForm = ({ mode = 'tambah' }) => {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
-        dusun: '',
         muzaki: '',
         jenis: 'Zakat Fitrah',
         jenisinfaq: 'tidak tetap',
@@ -19,7 +18,7 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [submitting, setSubmitting] = useState(false)
-    const [dusunList, setDusunList] = useState([])
+    const [muzakkiList, setMuzakkiList] = useState([])
     const [uploadingImage, setUploadingImage] = useState(false)
     const [imagePreview, setImagePreview] = useState('')
 
@@ -27,24 +26,30 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
     const { id } = useParams()
 
     useEffect(() => {
-        fetchDusunList()
+        fetchMuzakkiList()
         if (mode === 'edit' && id) {
             fetchData()
         }
     }, [mode, id])
 
-    const fetchDusunList = async () => {
+    const fetchMuzakkiList = async () => {
         try {
             const { data, error } = await supabase
-                .from('dusun')
-                .select('*')
+                .from('muzakki')
+                .select(`
+                    *,
+                    dusun (
+                        id,
+                        nama
+                    )
+                `)
                 .order('nama')
 
             if (error) throw error
 
-            setDusunList(data || [])
+            setMuzakkiList(data || [])
         } catch (error) {
-            console.error('Error fetching dusun list:', error)
+            console.error('Error fetching muzakki list:', error)
         }
     }
 
@@ -67,8 +72,7 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
 
                 setFormData({
                     date: formattedDate,
-                    dusun: data.dusun,
-                    muzaki: data.muzaki,
+                    muzaki_id: data.muzaki_id || '',
                     jenis: data.jenis,
                     jenisinfaq: data.jenisinfaq || 'tidak tetap',
                     jumlah: data.jumlah.toString(),
@@ -104,10 +108,12 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
         }
     }
 
-    const handleDusunChange = (dusunName) => {
+    const handleMuzakkiChange = (muzakkiId) => {
+        const selectedMuzakki = muzakkiList.find(m => m.id === muzakkiId);
         setFormData(prev => ({
             ...prev,
-            dusun: dusunName
+            muzaki: selectedMuzakki ? selectedMuzakki.nama : '', // Simpan nama sebagai string
+            muzaki_id: muzakkiId // Simpan ID jika masih perlu
         }))
     }
 
@@ -213,17 +219,23 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
             setSubmitting(true)
             setError(null)
 
-            if (!formData.date || !formData.dusun || !formData.muzaki || !formData.jenis || !formData.jumlah) {
+            if (!formData.date || !formData.muzaki || !formData.jenis || !formData.jumlah) {
                 throw new Error('Semua field harus diisi!')
+            }
+
+            // Get muzakki data for the selected ID
+            const selectedMuzakki = muzakkiList.find(m => m.id === formData.muzaki_id)
+            if (!selectedMuzakki) {
+                throw new Error('Data muzakki tidak valid!')
             }
 
             const newData = {
                 date: new Date(formData.date).toLocaleDateString('id-ID'),
-                dusun: formData.dusun,
-                muzaki: formData.muzaki,
+                muzaki: formData.muzaki, // Nama muzakki sebagai string
+                dusun: selectedMuzakki.dusun.nama,
                 jenis: formData.jenis,
                 jenisinfaq: formData.jenisinfaq,
-                jumlah: parseFloat(formData.jumlah),
+                jumlah: formData.jumlah, // Tetap sebagai string sesuai schema
                 dokumentasi: formData.dokumentasi
             }
 
@@ -246,9 +258,7 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
             if (result.error) throw result.error
 
             console.log('Data berhasil disimpan:', result.data)
-
             navigate('/pemasukan')
-
             alert(mode === 'edit' ? 'Data berhasil diupdate!' : 'Data berhasil ditambahkan!')
 
         } catch (error) {
@@ -262,6 +272,9 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
     const handleBack = () => {
         navigate('/pemasukan')
     }
+
+    // Get selected muzakki data for display
+    const selectedMuzakki = muzakkiList.find(m => m.id === formData.muzaki_id)
 
     if (loading) {
         return (
@@ -309,51 +322,52 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
                         />
                     </div>
 
+                    {/* PERUBAHAN: Section Pilih Muzaki dengan Radio Button */}
                     <div>
                         <label className="block text-sm sm:text-base font-medium text-slate-700 mb-3">
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Pilih Dusun
+                            <FontAwesomeIcon icon={faUser} className="mr-2 text-green-600 text-sm sm:text-base" />
+                            Pilih Muzaki
                         </label>
-                        <div className="space-y-2">
-                            {dusunList.length === 0 ? (
-                                <p className="text-slate-500 text-xs sm:text-sm py-2">
-                                    Belum ada dusun. Silakan tambah dusun di halaman Pengaturan terlebih dahulu.
+                        <div className="space-y-2 max-h-60 overflow-y-auto border border-green-200 rounded-lg p-2">
+                            {muzakkiList.length === 0 ? (
+                                <p className="text-slate-500 text-xs sm:text-sm py-4 text-center">
+                                    Belum ada muzakki. Silakan tambah muzakki di halaman Pengaturan terlebih dahulu.
                                 </p>
                             ) : (
-                                dusunList.map((dusun) => (
-                                    <label key={dusun.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
+                                muzakkiList.map((muzakki) => (
+                                    <label
+                                        key={muzakki.id}
+                                        className={`flex items-start space-x-2 sm:space-x-3 p-2 sm:p-3 border rounded-lg cursor-pointer transition-colors duration-200 ${formData.muzaki_id === muzakki.id
+                                                ? 'border-green-500 bg-green-50'
+                                                : 'border-green-300 hover:bg-green-50'
+                                            }`}
+                                    >
                                         <input
                                             type="radio"
-                                            name="dusun"
-                                            value={dusun.nama}
-                                            checked={formData.dusun === dusun.nama}
-                                            onChange={() => handleDusunChange(dusun.nama)}
-                                            className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
+                                            name="muzaki"
+                                            value={muzakki.id}
+                                            checked={formData.muzaki === muzakki.id}
+                                            onChange={() => handleMuzakkiChange(muzakki.id)}
+                                            className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4 mt-1 flex-shrink-0"
                                         />
-                                        <span className="text-xs sm:text-sm lg:text-base text-slate-700">{dusun.nama}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-slate-800 text-xs sm:text-sm lg:text-base">
+                                                {muzakki.nama}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                No. Reg: <span className="font-mono font-semibold">{muzakki.nomor_registrasi}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                Dusun: {muzakki.dusun.nama}
+                                            </div>
+                                        </div>
                                     </label>
                                 ))
                             )}
                         </div>
-                        {!formData.dusun && dusunList.length > 0 && (
-                            <p className="text-red-500 text-xs mt-2">Pilih salah satu dusun</p>
+                        {!formData.muzaki && muzakkiList.length > 0 && (
+                            <p className="text-red-500 text-xs mt-2">Pilih salah satu muzakki</p>
                         )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm sm:text-base font-medium text-slate-700 mb-2">
-                            <FontAwesomeIcon icon={faUser} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Nama Muzaki
-                        </label>
-                        <input
-                            type="text"
-                            name="muzaki"
-                            value={formData.muzaki}
-                            onChange={handleInputChange}
-                            placeholder="Masukkan nama muzaki"
-                            className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 bg-white text-sm sm:text-base"
-                            required
-                        />
                     </div>
 
                     <div>
@@ -375,36 +389,38 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
                         </select>
                     </div>
 
-                    <div>
-                        <label className="block text-sm sm:text-base font-medium text-slate-700 mb-3">
-                            <FontAwesomeIcon icon={faDonate} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Jenis Infaq
-                        </label>
-                        <div className="space-y-2">
-                            <label className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
-                                <input
-                                    type="radio"
-                                    name="jenisInfaq"
-                                    value="tetap"
-                                    checked={formData.jenisinfaq === 'tetap'}
-                                    onChange={() => handleJenisInfaqChange('tetap')}
-                                    className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
-                                />
-                                <span className="text-xs sm:text-sm lg:text-base text-slate-700">Tetap</span>
+                    {formData.jenis === 'Infaq' && (
+                        <div>
+                            <label className="block text-sm sm:text-base font-medium text-slate-700 mb-3">
+                                <FontAwesomeIcon icon={faDonate} className="mr-2 text-green-600 text-sm sm:text-base" />
+                                Jenis Infaq
                             </label>
-                            <label className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
-                                <input
-                                    type="radio"
-                                    name="jenisInfaq"
-                                    value="tidak tetap"
-                                    checked={formData.jenisinfaq === 'tidak tetap'}
-                                    onChange={() => handleJenisInfaqChange('tidak tetap')}
-                                    className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
-                                />
-                                <span className="text-xs sm:text-sm lg:text-base text-slate-700">Tidak Tetap</span>
-                            </label>
+                            <div className="space-y-2">
+                                <label className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
+                                    <input
+                                        type="radio"
+                                        name="jenisInfaq"
+                                        value="tetap"
+                                        checked={formData.jenisinfaq === 'tetap'}
+                                        onChange={() => handleJenisInfaqChange('tetap')}
+                                        className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
+                                    />
+                                    <span className="text-xs sm:text-sm lg:text-base text-slate-700">Tetap</span>
+                                </label>
+                                <label className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
+                                    <input
+                                        type="radio"
+                                        name="jenisInfaq"
+                                        value="tidak tetap"
+                                        checked={formData.jenisinfaq === 'tidak tetap'}
+                                        onChange={() => handleJenisInfaqChange('tidak tetap')}
+                                        className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
+                                    />
+                                    <span className="text-xs sm:text-sm lg:text-base text-slate-700">Tidak Tetap</span>
+                                </label>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div>
                         <label className="block text-sm sm:text-base font-medium text-slate-700 mb-2">
@@ -513,7 +529,7 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || !formData.dusun}
+                            disabled={submitting || !formData.muzaki} 
                             className="flex-1 bg-green-700 hover:bg-green-800 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 font-medium shadow-sm text-xs sm:text-sm lg:text-base"
                         >
                             {submitting ? (
@@ -541,6 +557,7 @@ const PemasukanForm = ({ mode = 'tambah' }) => {
                             <p className="text-green-700 text-xs sm:text-sm">
                                 Pastikan semua data yang dimasukkan sudah benar. Data yang sudah disimpan tidak dapat diubah kecuali melalui proses edit.
                                 Dokumentasi bersifat opsional dan dapat ditambahkan untuk keperluan bukti fisik.
+                                Muzakki harus dipilih dari daftar yang sudah terdaftar di sistem.
                             </p>
                         </div>
                     </div>

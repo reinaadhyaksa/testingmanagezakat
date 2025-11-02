@@ -5,22 +5,16 @@ import {
     faBars,
     faTimes,
     faHome,
-    faBullseye,
     faCalendarAlt,
-    faChartLine,
-    faComments,
-    faPhone
 } from '@fortawesome/free-solid-svg-icons'
+import { Link } from 'react-router-dom'
 
 const Header = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
     const navItems = [
-        { href: "#home", label: "Beranda", icon: faHome },
-        { href: "#visi", label: "Visi & Misi", icon: faBullseye },
-        { href: "#kegiatan", label: "Kegiatan", icon: faCalendarAlt },
-        { href: "#transparansi", label: "Transparansi", icon: faChartLine },
-        { href: "#kontak", label: "Kontak", icon: faPhone }
+        { href: "/beranda", label: "Beranda", icon: faHome },
+        { href: "/kegiatan-lembaga", label: "Kegiatan", icon: faCalendarAlt },
     ]
 
     const closeMobileMenu = () => {
@@ -36,15 +30,15 @@ const Header = () => {
                         className="text-green-700 text-2xl sm:text-3xl mr-2 sm:mr-3"
                     />
                     <span className="text-xl sm:text-2xl md:text-3xl font-bold text-green-800">
-                        Zakat Amanah
+                        NU CARE-LAZISNU
                     </span>
                 </div>
 
                 <nav className="hidden md:flex space-x-2 lg:space-x-4 xl:space-x-6">
                     {navItems.map((item) => (
-                        <a
+                        <Link
                             key={item.href}
-                            href={item.href}
+                            to={item.href}
                             className="text-slate-700 hover:text-green-700 font-medium transition duration-300 text-sm lg:text-base flex items-center hover:bg-green-50 px-3 py-2 rounded-lg"
                         >
                             <FontAwesomeIcon
@@ -52,7 +46,7 @@ const Header = () => {
                                 className="mr-2 text-sm text-green-600"
                             />
                             {item.label}
-                        </a>
+                        </Link>
                     ))}
                 </nav>
 
@@ -73,9 +67,9 @@ const Header = () => {
                 }`}>
                 <nav className="flex flex-col space-y-1 px-4 sm:px-6 pb-4 sm:pb-6">
                     {navItems.map((item) => (
-                        <a
+                        <Link
                             key={item.href}
-                            href={item.href}
+                            to={item.href}
                             className="text-slate-700 hover:text-green-700 font-medium py-3 px-4 rounded-lg hover:bg-green-50 transition duration-300 border-b border-green-100 last:border-b-0 flex items-center text-base sm:text-lg"
                             onClick={closeMobileMenu}
                         >
@@ -84,7 +78,7 @@ const Header = () => {
                                 className="mr-3 text-base sm:text-lg text-green-600"
                             />
                             {item.label}
-                        </a>
+                        </Link>
                     ))}
                 </nav>
             </div>

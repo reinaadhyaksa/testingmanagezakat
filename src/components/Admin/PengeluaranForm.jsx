@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../utils/supabase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft, faCalendarAlt, faUser, faTags, faMoneyBillWave, faSave, faExclamationTriangle, faCamera, faPlus, faTimes, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faCalendarAlt, faUser, faMoneyBillWave, faSave, faExclamationTriangle, faCamera, faPlus, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CLOUDINARY_NAME, CLOUDINARY_PRESET } from '../../utils/data'
 import { Loading } from '../Loading'
@@ -9,17 +9,14 @@ import { Loading } from '../Loading'
 const PengeluaranForm = ({ mode = 'tambah' }) => {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
-        penerima: '',
-        kategori: '',
-        dusun: '', // TAMBAHAN: Field dusun
+        mustahiq_id: '',
         jumlah: '',
         dokumentasi: null
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [submitting, setSubmitting] = useState(false)
-    const [kategoriList, setKategoriList] = useState([])
-    const [dusunList, setDusunList] = useState([]) // TAMBAHAN: State untuk list dusun
+    const [mustahiqList, setMustahiqList] = useState([])
     const [uploadingImage, setUploadingImage] = useState(false)
     const [imagePreview, setImagePreview] = useState('')
 
@@ -27,41 +24,34 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
     const { id } = useParams()
 
     useEffect(() => {
-        fetchKategoriList()
-        fetchDusunList() // TAMBAHAN: Fetch list dusun
+        fetchMustahiqList()
         if (mode === 'edit' && id) {
             fetchData()
         }
     }, [mode, id])
 
-    // TAMBAHAN: Fungsi untuk fetch list dusun
-    const fetchDusunList = async () => {
+    const fetchMustahiqList = async () => {
         try {
             const { data, error } = await supabase
-                .from('dusun')
-                .select('*')
+                .from('mustahiq')
+                .select(`
+                    *,
+                    dusun (
+                        id,
+                        nama
+                    ),
+                    kategori_penerima (
+                        id,
+                        nama
+                    )
+                `)
                 .order('nama')
 
             if (error) throw error
 
-            setDusunList(data || [])
+            setMustahiqList(data || [])
         } catch (error) {
-            console.error('Error fetching dusun list:', error)
-        }
-    }
-
-    const fetchKategoriList = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('kategori_penerima')
-                .select('*')
-                .order('nama')
-
-            if (error) throw error
-
-            setKategoriList(data || [])
-        } catch (error) {
-            console.error('Error fetching kategori list:', error)
+            console.error('Error fetching mustahiq list:', error)
         }
     }
 
@@ -84,9 +74,7 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
 
                 setFormData({
                     date: formattedDate,
-                    penerima: data.penerima,
-                    kategori: data.kategori,
-                    dusun: data.dusun || '', // TAMBAHAN: Include dusun data
+                    mustahiq_id: data.mustahiq_id || '',
                     jumlah: data.jumlah.toString(),
                     dokumentasi: data.dokumentasi
                 })
@@ -112,7 +100,7 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
                 ...prev,
                 [name]: numericValue
             }))
-        } else if (name !== 'kategori' && name !== 'dusun') {
+        } else {
             setFormData(prev => ({
                 ...prev,
                 [name]: value
@@ -120,18 +108,10 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
         }
     }
 
-    // TAMBAHAN: Fungsi untuk handle perubahan dusun
-    const handleDusunChange = (dusunName) => {
+    const handleMustahiqChange = (mustahiqId) => {
         setFormData(prev => ({
             ...prev,
-            dusun: dusunName
-        }))
-    }
-
-    const handleKategoriChange = (kategoriName) => {
-        setFormData(prev => ({
-            ...prev,
-            kategori: kategoriName
+            mustahiq_id: mustahiqId
         }))
     }
 
@@ -230,18 +210,25 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
             setSubmitting(true)
             setError(null)
 
-            // TAMBAHAN: Include dusun dalam validasi
-            if (!formData.date || !formData.penerima || !formData.kategori || !formData.dusun || !formData.jumlah) {
+            if (!formData.date || !formData.mustahiq_id || !formData.jumlah) {
                 throw new Error('Semua field harus diisi!')
+            }
+
+            // Get mustahiq data for the selected ID
+            const selectedMustahiq = mustahiqList.find(m => m.id === formData.mustahiq_id)
+            if (!selectedMustahiq) {
+                throw new Error('Data mustahiq tidak valid!')
             }
 
             const jumlahNumber = parseFloat(formData.jumlah)
 
             const newData = {
                 date: new Date(formData.date).toLocaleDateString('id-ID'),
-                penerima: formData.penerima,
-                kategori: formData.kategori,
-                dusun: formData.dusun, // TAMBAHAN: Include dusun dalam data yang disimpan
+                mustahiq_id: formData.mustahiq_id,
+                mustahiq_nama: selectedMustahiq.nama,
+                mustahiq_nomor_registrasi: selectedMustahiq.nomor_registrasi,
+                mustahiq_dusun: selectedMustahiq.dusun.nama,
+                mustahiq_kategori: selectedMustahiq.kategori_penerima.nama,
                 jumlah: jumlahNumber,
                 dokumentasi: formData.dokumentasi
             }
@@ -281,6 +268,9 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
     const handleBack = () => {
         navigate('/pengeluaran')
     }
+
+    // Get selected mustahiq data for display
+    const selectedMustahiq = mustahiqList.find(m => m.id === formData.mustahiq_id)
 
     if (loading) {
         return (
@@ -328,82 +318,43 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
                         />
                     </div>
 
-                    {/* TAMBAHAN: Section Dusun */}
                     <div>
                         <label className="block text-sm sm:text-base font-medium text-slate-700 mb-3">
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Pilih Dusun
-                        </label>
-                        <div className="space-y-2">
-                            {dusunList.length === 0 ? (
-                                <p className="text-slate-500 text-xs sm:text-sm py-2">
-                                    Belum ada dusun. Silakan tambah dusun di halaman Pengaturan terlebih dahulu.
-                                </p>
-                            ) : (
-                                dusunList.map((dusun) => (
-                                    <label key={dusun.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
-                                        <input
-                                            type="radio"
-                                            name="dusun"
-                                            value={dusun.nama}
-                                            checked={formData.dusun === dusun.nama}
-                                            onChange={() => handleDusunChange(dusun.nama)}
-                                            className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
-                                        />
-                                        <span className="text-xs sm:text-sm lg:text-base text-slate-700">{dusun.nama}</span>
-                                    </label>
-                                ))
-                            )}
-                        </div>
-                        {!formData.dusun && dusunList.length > 0 && (
-                            <p className="text-red-500 text-xs mt-2">Pilih salah satu dusun</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm sm:text-base font-medium text-slate-700 mb-2">
                             <FontAwesomeIcon icon={faUser} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Nama Penerima
+                            Pilih Mustahiq (Penerima) *
                         </label>
-                        <input
-                            type="text"
-                            name="penerima"
-                            value={formData.penerima}
-                            onChange={handleInputChange}
-                            placeholder="Masukkan nama penerima"
-                            className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 bg-white text-sm sm:text-base"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm sm:text-base font-medium text-slate-700 mb-3">
-                            <FontAwesomeIcon icon={faTags} className="mr-2 text-green-600 text-sm sm:text-base" />
-                            Pilih Kategori Penyaluran
-                        </label>
-                        <div className="space-y-2">
-                            {kategoriList.length === 0 ? (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {mustahiqList.length === 0 ? (
                                 <p className="text-slate-500 text-xs sm:text-sm py-2">
-                                    Belum ada kategori. Silakan tambah kategori di halaman Pengaturan terlebih dahulu.
+                                    Belum ada mustahiq. Silakan tambah mustahiq di halaman Pengaturan terlebih dahulu.
                                 </p>
                             ) : (
-                                kategoriList.map((kategori) => (
-                                    <label key={kategori.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
+                                mustahiqList.map((mustahiq) => (
+                                    <label key={mustahiq.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer transition-colors duration-200">
                                         <input
                                             type="radio"
-                                            name="kategori"
-                                            value={kategori.nama}
-                                            checked={formData.kategori === kategori.nama}
-                                            onChange={() => handleKategoriChange(kategori.nama)}
+                                            name="mustahiq"
+                                            value={mustahiq.id}
+                                            checked={formData.mustahiq_id === mustahiq.id}
+                                            onChange={() => handleMustahiqChange(mustahiq.id)}
                                             className="text-green-600 focus:ring-green-500 w-3 h-3 sm:w-4 sm:h-4"
                                         />
-                                        <span className="text-xs sm:text-sm lg:text-base text-slate-700">{kategori.nama}</span>
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-800 text-sm sm:text-base">
+                                                {mustahiq.nama}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                No. Reg: <span className="font-mono">{mustahiq.nomor_registrasi}</span> |
+                                                Dusun: {mustahiq.dusun.nama} |
+                                                Kategori: {mustahiq.kategori_penerima.nama}
+                                            </div>
+                                        </div>
                                     </label>
                                 ))
                             )}
                         </div>
-                        {!formData.kategori && kategoriList.length > 0 && (
-                            <p className="text-red-500 text-xs mt-2">Pilih salah satu kategori</p>
+                        {!formData.mustahiq_id && mustahiqList.length > 0 && (
+                            <p className="text-red-500 text-xs mt-2">Pilih salah satu mustahiq</p>
                         )}
                     </div>
 
@@ -514,7 +465,7 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || !formData.kategori || !formData.dusun} // TAMBAHAN: Validasi dusun
+                            disabled={submitting || !formData.mustahiq_id}
                             className="flex-1 bg-green-700 hover:bg-green-800 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 font-medium shadow-sm text-xs sm:text-sm lg:text-base"
                         >
                             {submitting ? (
@@ -542,7 +493,7 @@ const PengeluaranForm = ({ mode = 'tambah' }) => {
                             <p className="text-green-700 text-xs sm:text-sm">
                                 Pastikan semua data yang dimasukkan sudah benar. Data yang sudah disimpan tidak dapat diubah kecuali melalui proses edit.
                                 Dokumentasi bersifat opsional dan dapat digunakan untuk bukti fisik penyaluran dana.
-                                Pilih kategori dan dusun dari daftar yang tersedia. Jika kategori/dusun yang dicari tidak ada, silakan tambah terlebih dahulu di halaman Pengaturan.
+                                Pilih mustahiq dari daftar yang sudah terdaftar di sistem.
                             </p>
                         </div>
                     </div>

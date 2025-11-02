@@ -103,6 +103,23 @@ const Laporan = () => {
         return ['Semua Dusun', ...dusunNames];
     }, [dusunList]);
 
+    // Format tanggal untuk tampilan
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    };
+
+    // Format tanggal untuk grouping
+    const formatDateForGrouping = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('id-ID');
+    };
+
     const laporan = useMemo(() => {
         let filtered = pemasukanData;
 
@@ -118,16 +135,34 @@ const Laporan = () => {
             filtered = filtered.filter(item => item.dusun === filters.dusun);
         }
 
-        const dusunMap = {};
-        let totalMuzaki = 0;
-        let totalInfaqTetap = 0;
-        let totalInfaqTidakTetap = 0;
-        let totalSeluruh = 0;
+        // Group data by date
+        const dateGroups = {};
 
         filtered.forEach(item => {
+            const dateKey = formatDateForGrouping(item.created_at);
+            const fullDate = item.created_at;
+
+            if (!dateGroups[dateKey]) {
+                dateGroups[dateKey] = {
+                    date: dateKey,
+                    fullDate: fullDate,
+                    items: [],
+                    dusunMap: {},
+                    totals: {
+                        totalMuzaki: 0,
+                        totalInfaqTetap: 0,
+                        totalInfaqTidakTetap: 0,
+                        totalSeluruh: 0
+                    }
+                };
+            }
+
+            dateGroups[dateKey].items.push(item);
+
+            // Process per dusun for this date
             const dusun = item.dusun;
-            if (!dusunMap[dusun]) {
-                dusunMap[dusun] = {
+            if (!dateGroups[dateKey].dusunMap[dusun]) {
+                dateGroups[dateKey].dusunMap[dusun] = {
                     dusun: dusun,
                     muzaki: new Set(),
                     infaqTetap: 0,
@@ -136,381 +171,271 @@ const Laporan = () => {
                 };
             }
 
-            dusunMap[dusun].muzaki.add(item.muzaki);
+            dateGroups[dateKey].dusunMap[dusun].muzaki.add(item.muzaki);
 
             const jumlah = parseCurrency(item.jumlah);
 
             if (item.jenisinfaq === 'tetap') {
-                dusunMap[dusun].infaqTetap += jumlah;
+                dateGroups[dateKey].dusunMap[dusun].infaqTetap += jumlah;
+                dateGroups[dateKey].totals.totalInfaqTetap += jumlah;
             } else if (item.jenisinfaq === 'tidak tetap') {
-                dusunMap[dusun].infaqTidakTetap += jumlah;
+                dateGroups[dateKey].dusunMap[dusun].infaqTidakTetap += jumlah;
+                dateGroups[dateKey].totals.totalInfaqTidakTetap += jumlah;
             }
 
-            dusunMap[dusun].total += jumlah;
+            dateGroups[dateKey].dusunMap[dusun].total += jumlah;
+            dateGroups[dateKey].totals.totalSeluruh += jumlah;
         });
 
-        const laporanData = Object.values(dusunMap).map(item => {
-            totalMuzaki += item.muzaki.size;
-            totalInfaqTetap += item.infaqTetap;
-            totalInfaqTidakTetap += item.infaqTidakTetap;
-            totalSeluruh += item.total;
-
-            return {
+        // Convert dusunMap to array and calculate muzaki count
+        Object.keys(dateGroups).forEach(dateKey => {
+            const group = dateGroups[dateKey];
+            group.dusunData = Object.values(group.dusunMap).map(item => ({
                 ...item,
                 jumlahMuzaki: item.muzaki.size
-            };
+            }));
+
+            // Calculate total muzaki for this date
+            group.totals.totalMuzaki = group.dusunData.reduce((sum, item) => sum + item.jumlahMuzaki, 0);
+
+            // Sort dusun data
+            group.dusunData.sort((a, b) => a.dusun.localeCompare(b.dusun));
         });
 
-        laporanData.sort((a, b) => a.dusun.localeCompare(b.dusun));
+        // Convert to array and sort by date (newest first)
+        const laporanData = Object.values(dateGroups).sort((a, b) =>
+            new Date(b.fullDate) - new Date(a.fullDate)
+        );
+
+        // Calculate overall totals
+        const overallTotals = {
+            totalMuzaki: laporanData.reduce((sum, group) => sum + group.totals.totalMuzaki, 0),
+            totalInfaqTetap: laporanData.reduce((sum, group) => sum + group.totals.totalInfaqTetap, 0),
+            totalInfaqTidakTetap: laporanData.reduce((sum, group) => sum + group.totals.totalInfaqTidakTetap, 0),
+            totalSeluruh: laporanData.reduce((sum, group) => sum + group.totals.totalSeluruh, 0)
+        };
 
         return {
             data: laporanData,
-            totals: {
-                totalMuzaki,
-                totalInfaqTetap,
-                totalInfaqTidakTetap,
-                totalSeluruh
-            },
+            totals: overallTotals,
             filteredCount: filtered.length
         };
     }, [pemasukanData, filters]);
 
-    // Fungsi Export ke Excel
-    const exportToExcel = async () => {
-        try {
-            setExportLoading('excel');
-
-            if (!laporan.data || !Array.isArray(laporan.data)) {
-                throw new Error('Data laporan tidak tersedia atau bukan array')
-            }
-            if (laporan.data.length === 0) {
-                throw new Error('Tidak ada data untuk diekspor')
-            }
-
-            const XLSX = await import('xlsx-js-style')
-            const wb = XLSX.utils.book_new()
-            const excelData = []
-
-            // Header Laporan
-            excelData.push(['', '', 'LAPORAN DATA PEMASUKAN PER DUSUN'])
-            excelData.push(['', '', 'Data Pemasukan Zakat, Infaq, dan Sedekah'])
-
-            // Info Filter
-            const bulanTerpilih = listBulan.find(b => b.value === filters.bulan)?.label || 'Semua Bulan'
-            excelData.push(['', '', `Filter: ${bulanTerpilih} - ${filters.dusun}`])
-            excelData.push([])
-            excelData.push([])
-
-            // Header Tabel
-            excelData.push(['', '', 'NO', 'DUSUN', 'JUMLAH MUZAKI', 'INFAQ TETAP', 'INFAQ TIDAK TETAP', 'TOTAL'])
-
-            // Data
-            laporan.data.forEach((item, index) => {
-                excelData.push([
-                    '', '',
-                    index + 1,
-                    item.dusun || '-',
-                    `${item.jumlahMuzaki} Orang`,
-                    formatCurrencyForExport(item.infaqTetap || 0),
-                    formatCurrencyForExport(item.infaqTidakTetap || 0),
-                    formatCurrencyForExport(item.total || 0)
-                ])
-            })
-
-            // Footer dengan ringkasan
-            excelData.push([])
-            excelData.push(['', '', 'RINGKASAN:'])
-            excelData.push(['', '', `Total Dusun: ${laporan.data.length}`])
-            excelData.push(['', '', `Total Muzaki: ${laporan.totals.totalMuzaki} Orang`])
-            excelData.push(['', '', `Total Infaq Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTetap)}`])
-            excelData.push(['', '', `Total Infaq Tidak Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTidakTetap)}`])
-            excelData.push(['', '', `Total Seluruh: ${formatCurrencyForExport(laporan.totals.totalSeluruh)}`])
-            excelData.push([])
-
-            const ws = XLSX.utils.aoa_to_sheet(excelData)
-            const colWidths = [
-                { wch: 2 },
-                { wch: 2 },
-                { wch: 8 },
-                { wch: 25 },
-                { wch: 15 },
-                { wch: 20 },
-                { wch: 20 },
-                { wch: 20 }
-            ]
-            ws['!cols'] = colWidths
-
-            // Merge cells untuk header
-            ws['!merges'] = [
-                { s: { r: 0, c: 2 }, e: { r: 0, c: 7 } },
-                { s: { r: 1, c: 2 }, e: { r: 1, c: 7 } },
-                { s: { r: 2, c: 2 }, e: { r: 2, c: 7 } }
-            ]
-
-            // Styling header utama
-            if (ws['C1']) {
-                ws['C1'].s = {
-                    font: { bold: true, sz: 16, color: { rgb: '282828' } },
-                    alignment: { vertical: 'center', horizontal: 'center' }
-                }
-            }
-            if (ws['C2']) {
-                ws['C2'].s = {
-                    font: { sz: 10, color: { rgb: '646464' } },
-                    alignment: { vertical: 'center', horizontal: 'center' }
-                }
-            }
-            if (ws['C3']) {
-                ws['C3'].s = {
-                    font: { sz: 9, color: { rgb: '646464' } },
-                    alignment: { vertical: 'center', horizontal: 'center' }
-                }
-            }
-
-            // Styling header tabel (baris 5)
-            const headerRowIndex = 5;
-            for (let C = 2; C < 8; C++) {
-                const cell_ref = XLSX.utils.encode_cell({ c: C, r: headerRowIndex })
-                if (ws[cell_ref]) {
-                    ws[cell_ref].s = {
-                        fill: { fgColor: { rgb: 'DC2626' } },
-                        font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 9 },
-                        alignment: { vertical: 'center', horizontal: 'center' },
-                        border: {
-                            top: { style: 'thin', color: { rgb: '000000' } },
-                            left: { style: 'thin', color: { rgb: '000000' } },
-                            bottom: { style: 'thin', color: { rgb: '000000' } },
-                            right: { style: 'thin', color: { rgb: '000000' } }
-                        }
-                    }
-                }
-            }
-
-            // Styling data rows
-            const dataStartRow = 6;
-            const dataEndRow = 5 + laporan.data.length;
-            for (let R = dataStartRow; R <= dataEndRow; R++) {
-                const isEvenRow = (R - dataStartRow) % 2 === 1;
-
-                for (let C = 2; C < 8; C++) {
-                    const cell_ref = XLSX.utils.encode_cell({ c: C, r: R })
-                    if (ws[cell_ref]) {
-                        ws[cell_ref].s = {
-                            fill: isEvenRow ? { fgColor: { rgb: 'F5F5F5' } } : { fgColor: { rgb: 'FFFFFF' } },
-                            font: { sz: 8 },
-                            alignment: { vertical: 'center', horizontal: 'center' },
-                            border: {
-                                top: { style: 'thin', color: { rgb: 'CCCCCC' } },
-                                left: { style: 'thin', color: { rgb: 'CCCCCC' } },
-                                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
-                                right: { style: 'thin', color: { rgb: 'CCCCCC' } }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Styling ringkasan
-            const ringkasanStart = dataEndRow + 2;
-            for (let i = 0; i <= 5; i++) {
-                const cell_ref = XLSX.utils.encode_cell({ c: 2, r: ringkasanStart + i })
-                if (ws[cell_ref]) {
-                    ws[cell_ref].s = {
-                        font: { sz: 8, bold: i === 0 },
-                        alignment: { vertical: 'center', horizontal: 'center' }
-                    }
-                }
-            }
-
-            XLSX.utils.book_append_sheet(wb, ws, 'Laporan Pemasukan')
-            const fileName = `Laporan_Pemasukan_Per_Dusun_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`
-            XLSX.writeFile(wb, fileName)
-
-        } catch (error) {
-            console.error('❌ Error exporting to Excel:', error)
-            alert('Error saat mengekspor ke Excel: ' + error.message)
-        } finally {
-            setExportLoading(null)
-        }
-    }
-
-    // Fungsi Export ke PDF
+    // Fungsi Export ke PDF berdasarkan tanggal
     const exportToPDF = async () => {
         try {
-            setExportLoading('pdf')
+            setExportLoading('pdf');
             const { jsPDF } = await import('jspdf');
             const doc = new jsPDF();
 
-            // Header
-            doc.setFontSize(16);
-            doc.setTextColor(40, 40, 40);
-            doc.setFont(undefined, 'bold');
-            doc.text('LAPORAN DATA PEMASUKAN PER DUSUN', 105, 20, { align: 'center' });
-
-            doc.setFontSize(10);
-            doc.setTextColor(100, 100, 100);
-            doc.setFont(undefined, 'normal');
-            doc.text('Data Pemasukan Zakat, Infaq, dan Sedekah', 105, 27, { align: 'center' });
-
-            // Info Filter
-            const bulanTerpilih = listBulan.find(b => b.value === filters.bulan)?.label || 'Semua Bulan'
-            doc.setFontSize(8);
-            doc.text(`Filter: ${bulanTerpilih} - ${filters.dusun}`, 15, 35);
-            doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 15, 40);
-            doc.text(`Total Dusun: ${laporan.data.length}`, 15, 45);
-            doc.text(`Total Muzaki: ${laporan.totals.totalMuzaki} Orang`, 15, 50);
-
-            const headers = ['NO', 'DUSUN', 'MUZAKI', 'INFAQ TETAP', 'INFAQ TIDAK TETAP', 'TOTAL'];
-
-            const tableData = laporan.data.map((item, index) => [
-                (index + 1).toString(),
-                item.dusun,
-                `${item.jumlahMuzaki} Orang`,
-                formatCurrencyForExport(item.infaqTetap),
-                formatCurrencyForExport(item.infaqTidakTetap),
-                formatCurrencyForExport(item.total)
-            ]);
-
-            let startY = 60;
-            const lineHeight = 7;
+            let startY = 20;
             const pageHeight = doc.internal.pageSize.height;
             const margin = 15;
-            const colWidths = [10, 40, 20, 30, 30, 30];
-
-            const drawTableBorders = (y, rowHeight) => {
-                let xPos = margin;
-                doc.setDrawColor(0, 0, 0);
-                doc.setLineWidth(0.2);
-
-                colWidths.forEach((width) => {
-                    doc.line(xPos, y, xPos, y + rowHeight);
-                    xPos += width;
-                });
-                doc.rect(margin, y, xPos - margin, rowHeight);
-            };
+            const lineHeight = 7; // Pindahkan deklarasi lineHeight ke sini
 
             const addNewPage = () => {
                 doc.addPage();
                 startY = margin;
 
-                doc.setFontSize(12);
+                // Add header for continuation pages
+                doc.setFontSize(10);
                 doc.setTextColor(100, 100, 100);
-                doc.text('LAPORAN DATA PEMASUKAN PER DUSUN (Lanjutan)', 105, 15, { align: 'center' });
-                doc.setFontSize(8);
+                doc.text('LAPORAN DATA PEMASUKAN PER TANGGAL (Lanjutan)', 105, 15, { align: 'center' });
                 doc.text(`Halaman ${doc.internal.getNumberOfPages()}`, 190, 25, { align: 'right' });
             };
 
-            // Header tabel
-            doc.setFillColor(220, 38, 38);
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(9);
-            doc.setFont(undefined, 'bold');
+            // Info Filter
+            const bulanTerpilih = listBulan.find(b => b.value === filters.bulan)?.label || 'Semua Bulan';
 
-            let xPos = margin;
-            headers.forEach((header, index) => {
-                doc.setFillColor(220, 38, 38);
-                doc.rect(xPos, startY, colWidths[index], lineHeight * 1.5, 'F');
-                xPos += colWidths[index];
-            });
-
-            xPos = margin;
-            headers.forEach((header, index) => {
-                const textWidth = doc.getTextWidth(header);
-                const textX = xPos + (colWidths[index] - textWidth) / 2;
-                doc.text(header, textX, startY + lineHeight);
-                xPos += colWidths[index];
-            });
-
-            drawTableBorders(startY, lineHeight * 1.5);
-            startY += lineHeight * 1.5;
-
-            // Data rows
-            doc.setTextColor(0, 0, 0);
-            doc.setFont(undefined, 'normal');
-            doc.setFontSize(8);
-
-            tableData.forEach((row, rowIndex) => {
-                if (startY > pageHeight - margin - lineHeight) {
+            // Process each date group
+            laporan.data.forEach((dateGroup, groupIndex) => {
+                if (groupIndex > 0 && startY > pageHeight - 100) {
                     addNewPage();
+                }
 
-                    // Redraw header pada halaman baru
-                    doc.setFillColor(220, 38, 38);
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFont(undefined, 'bold');
+                // Header untuk setiap tanggal
+                doc.setFontSize(12);
+                doc.setTextColor(40, 40, 40);
+                doc.setFont(undefined, 'bold');
+                doc.text(`LAPORAN PEMASUKAN - ${formatDate(dateGroup.fullDate).toUpperCase()}`, margin, startY);
 
-                    xPos = margin;
-                    headers.forEach((header, index) => {
-                        doc.rect(xPos, startY, colWidths[index], lineHeight * 1.5, 'F');
-                        const textWidth = doc.getTextWidth(header);
-                        const textX = xPos + (colWidths[index] - textWidth) / 2;
-                        doc.text(header, textX, startY + lineHeight);
-                        xPos += colWidths[index];
+                startY += 8;
+                doc.setFontSize(8);
+                doc.setTextColor(100, 100, 100);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Filter: ${bulanTerpilih} - ${filters.dusun}`, margin, startY);
+                startY += 5;
+                doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, margin, startY);
+                startY += 10;
+
+                const headers = ['NO', 'DUSUN', 'MUZAKI', 'TETAP', 'TIDAK TETAP', 'TOTAL'];
+                const tableData = dateGroup.dusunData.map((item, index) => [
+                    (index + 1).toString(),
+                    item.dusun,
+                    `${item.jumlahMuzaki} Orang`,
+                    formatCurrencyForExport(item.infaqTetap),
+                    formatCurrencyForExport(item.infaqTidakTetap),
+                    formatCurrencyForExport(item.total)
+                ]);
+
+                const colWidths = [10, 40, 20, 30, 30, 30];
+
+                const drawTableBorders = (y, rowHeight) => {
+                    let xPos = margin;
+                    doc.setDrawColor(0, 0, 0);
+                    doc.setLineWidth(0.2);
+
+                    colWidths.forEach((width) => {
+                        doc.line(xPos, y, xPos, y + rowHeight);
+                        xPos += width;
                     });
-                    drawTableBorders(startY, lineHeight * 1.5);
-                    startY += lineHeight * 1.5;
+                    doc.rect(margin, y, xPos - margin, rowHeight);
+                };
 
-                    doc.setTextColor(0, 0, 0);
-                    doc.setFont(undefined, 'normal');
-                }
+                // Header tabel
+                doc.setFillColor(220, 38, 38);
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
 
-                // Alternate row background
-                if (rowIndex % 2 === 0) {
-                    doc.setFillColor(245, 245, 245);
-                    doc.rect(margin, startY, 160, lineHeight * 1.2, 'F');
-                }
-
-                xPos = margin;
-                row.forEach((cell, cellIndex) => {
-                    let displayText = cell.toString();
-                    const maxWidth = colWidths[cellIndex] - 4;
-
-                    // Truncate text if too long
-                    if ((cellIndex === 1) && doc.getTextWidth(displayText) > maxWidth) {
-                        while (doc.getTextWidth(displayText) > maxWidth && displayText.length > 10) {
-                            displayText = displayText.substring(0, displayText.length - 1);
-                        }
-                        displayText = displayText + '...';
-                    }
-
-                    const textWidth = doc.getTextWidth(displayText);
-                    const textX = xPos + (colWidths[cellIndex] - textWidth) / 2;
-                    doc.text(displayText, textX, startY + lineHeight - 2);
-                    xPos += colWidths[cellIndex];
+                let xPos = margin;
+                headers.forEach((header, index) => {
+                    doc.setFillColor(220, 38, 38);
+                    doc.rect(xPos, startY, colWidths[index], lineHeight * 1.5, 'F');
+                    xPos += colWidths[index];
                 });
 
-                drawTableBorders(startY, lineHeight * 1.2);
-                startY += lineHeight * 1.2;
+                xPos = margin;
+                headers.forEach((header, index) => {
+                    const textWidth = doc.getTextWidth(header);
+                    const textX = xPos + (colWidths[index] - textWidth) / 2;
+                    doc.text(header, textX, startY + lineHeight);
+                    xPos += colWidths[index];
+                });
+
+                drawTableBorders(startY, lineHeight * 1.5);
+                startY += lineHeight * 1.5;
+
+                // Data rows untuk tanggal ini
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(8);
+
+                tableData.forEach((row, rowIndex) => {
+                    if (startY > pageHeight - margin - lineHeight) {
+                        addNewPage();
+
+                        // Redraw header pada halaman baru
+                        doc.setFillColor(220, 38, 38);
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFont(undefined, 'bold');
+
+                        xPos = margin;
+                        headers.forEach((header, index) => {
+                            doc.rect(xPos, startY, colWidths[index], lineHeight * 1.5, 'F');
+                            const textWidth = doc.getTextWidth(header);
+                            const textX = xPos + (colWidths[index] - textWidth) / 2;
+                            doc.text(header, textX, startY + lineHeight);
+                            xPos += colWidths[index];
+                        });
+                        drawTableBorders(startY, lineHeight * 1.5);
+                        startY += lineHeight * 1.5;
+
+                        doc.setTextColor(0, 0, 0);
+                        doc.setFont(undefined, 'normal');
+                    }
+
+                    // Alternate row background
+                    if (rowIndex % 2 === 0) {
+                        doc.setFillColor(245, 245, 245);
+                        doc.rect(margin, startY, 160, lineHeight * 1.2, 'F');
+                    }
+
+                    xPos = margin;
+                    row.forEach((cell, cellIndex) => {
+                        let displayText = cell.toString();
+                        const maxWidth = colWidths[cellIndex] - 4;
+
+                        // Truncate text if too long
+                        if ((cellIndex === 1) && doc.getTextWidth(displayText) > maxWidth) {
+                            while (doc.getTextWidth(displayText) > maxWidth && displayText.length > 10) {
+                                displayText = displayText.substring(0, displayText.length - 1);
+                            }
+                            displayText = displayText + '...';
+                        }
+
+                        const textWidth = doc.getTextWidth(displayText);
+                        const textX = xPos + (colWidths[cellIndex] - textWidth) / 2;
+                        doc.text(displayText, textX, startY + lineHeight - 2);
+                        xPos += colWidths[cellIndex];
+                    });
+
+                    drawTableBorders(startY, lineHeight * 1.2);
+                    startY += lineHeight * 1.2;
+                });
+
+                // Ringkasan per tanggal
+                startY += lineHeight;
+                if (startY > pageHeight - margin - lineHeight * 8) {
+                    addNewPage();
+                    startY = margin + 10;
+                }
+
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(9);
+                doc.text(`RINGKASAN ${formatDateForGrouping(dateGroup.fullDate)}:`, margin, startY);
+                startY += lineHeight;
+
+                doc.setFont(undefined, 'normal');
+                doc.text(`Total Dusun: ${dateGroup.dusunData.length}`, margin + 10, startY);
+                startY += lineHeight;
+                doc.text(`Total Muzaki: ${dateGroup.totals.totalMuzaki} Orang`, margin + 10, startY);
+                startY += lineHeight;
+                doc.text(`Total Infaq Tetap: ${formatCurrencyForExport(dateGroup.totals.totalInfaqTetap)}`, margin + 10, startY);
+                startY += lineHeight;
+                doc.text(`Total Infaq Tidak Tetap: ${formatCurrencyForExport(dateGroup.totals.totalInfaqTidakTetap)}`, margin + 10, startY);
+                startY += lineHeight;
+                doc.text(`Total Seluruh: ${formatCurrencyForExport(dateGroup.totals.totalSeluruh)}`, margin + 10, startY);
+
+                // Space antara kelompok tanggal
+                startY += lineHeight * 2;
+
+                // Add new page if we're at the bottom and there are more groups
+                if (groupIndex < laporan.data.length - 1 && startY > pageHeight - 100) {
+                    addNewPage();
+                }
             });
 
-            // Ringkasan
-            startY += lineHeight;
-            if (startY > pageHeight - margin - lineHeight * 8) {
+            // Overall summary on last page
+            if (startY > pageHeight - margin - lineHeight * 10) {
                 addNewPage();
                 startY = margin + 10;
             }
 
+            startY += 10;
             doc.setFont(undefined, 'bold');
-            doc.setFontSize(9);
-            doc.text('RINGKASAN:', margin, startY);
-            startY += lineHeight;
+            doc.setFontSize(12);
+            doc.text('RINGKASAN KESELURUHAN', margin, startY);
+            startY += lineHeight * 2;
 
-            doc.setFont(undefined, 'normal');
-            doc.text(`Total Dusun: ${laporan.data.length}`, margin + 10, startY);
+            doc.setFontSize(10);
+            doc.text(`Total Seluruh Tanggal: ${laporan.data.length} Hari`, margin, startY);
             startY += lineHeight;
-            doc.text(`Total Muzaki: ${laporan.totals.totalMuzaki} Orang`, margin + 10, startY);
+            doc.text(`Total Muzaki: ${laporan.totals.totalMuzaki} Orang`, margin, startY);
             startY += lineHeight;
-            doc.text(`Total Infaq Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTetap)}`, margin + 10, startY);
+            doc.text(`Total Infaq Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTetap)}`, margin, startY);
             startY += lineHeight;
-            doc.text(`Total Infaq Tidak Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTidakTetap)}`, margin + 10, startY);
+            doc.text(`Total Infaq Tidak Tetap: ${formatCurrencyForExport(laporan.totals.totalInfaqTidakTetap)}`, margin, startY);
             startY += lineHeight;
-            doc.text(`Total Seluruh: ${formatCurrencyForExport(laporan.totals.totalSeluruh)}`, margin + 10, startY);
+            doc.text(`Total Seluruh: ${formatCurrencyForExport(laporan.totals.totalSeluruh)}`, margin, startY);
 
             startY += lineHeight * 2;
             doc.setFontSize(7);
             doc.setTextColor(100, 100, 100);
             doc.text('Laporan ini dicetak secara otomatis dari Sistem', margin, startY);
 
-            const fileName = `Laporan_Pemasukan_Per_Dusun_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.pdf`;
+            const fileName = `Laporan_Pemasukan_Per_Tanggal_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.pdf`;
             doc.save(fileName);
 
         } catch (error) {
@@ -537,7 +462,9 @@ const Laporan = () => {
 
     useEffect(() => {
         if (filters.dusun && filters.dusun !== 'Semua Dusun') {
-            const dusunExists = laporan.data.some(item => item.dusun === filters.dusun);
+            const dusunExists = laporan.data.some(dateGroup =>
+                dateGroup.dusunData.some(item => item.dusun === filters.dusun)
+            );
             if (!dusunExists && laporan.data.length > 0) {
                 setFilters(prev => ({
                     ...prev,
@@ -632,7 +559,7 @@ const Laporan = () => {
                             Laporan Keuangan
                         </h2>
                         <p className="text-slate-600 text-sm sm:text-base">
-                            Ringkasan data pemasukan per dusun
+                            Ringkasan data pemasukan per tanggal
                         </p>
                     </div>
                     <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
@@ -665,21 +592,9 @@ const Laporan = () => {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                             <div className="mb-3 sm:mb-0">
                                 <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-1">Export Laporan</h3>
-                                <p className="text-slate-600 text-xs sm:text-sm">Unduh laporan dalam format Excel atau PDF</p>
+                                <p className="text-slate-600 text-xs sm:text-sm">Unduh laporan dalam format PDF</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                <button
-                                    onClick={exportToExcel}
-                                    disabled={exportLoading}
-                                    className="flex items-center space-x-2 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 text-xs sm:text-sm font-medium"
-                                >
-                                    {exportLoading === 'excel' ? (
-                                        <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                                    ) : (
-                                        <FontAwesomeIcon icon={faFileExcel} className="h-3 w-3 sm:h-4 sm:w-4" />
-                                    )}
-                                    <span>Excel</span>
-                                </button>
                                 <button
                                     onClick={exportToPDF}
                                     disabled={exportLoading}
@@ -802,9 +717,9 @@ const Laporan = () => {
                                     <FontAwesomeIcon icon={faRefresh} className="text-orange-700 w-3 h-3 sm:w-4 sm:h-4" />
                                 </div>
                                 <div>
-                                    <p className="text-xs sm:text-sm text-slate-600">Terakhir Update</p>
-                                    <p className="text-xs sm:text-sm font-bold text-slate-800">
-                                        {new Date().toLocaleTimeString('id-ID')}
+                                    <p className="text-xs sm:text-sm text-slate-600">Total Tanggal</p>
+                                    <p className="text-base sm:text-lg md:text-xl font-bold text-slate-800">
+                                        {laporan.data.length} Hari
                                     </p>
                                 </div>
                             </div>
@@ -812,7 +727,7 @@ const Laporan = () => {
                     </div>
                 )}
 
-                {/* Main Table */}
+                {/* Main Content - Grouped by Date */}
                 {laporan.data.length === 0 ? (
                     <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-6 sm:p-8 text-center border border-green-200">
                         <div className="max-w-md mx-auto">
@@ -833,76 +748,96 @@ const Laporan = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-green-200 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[600px]">
-                                <thead className="bg-green-50 border-b border-green-200">
-                                    <tr>
-                                        <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                                            Dusun
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                                            Jumlah Muzaki
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                                            Infaq Tetap
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                                            Infaq Tidak Tetap
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                                            Total
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-green-200">
-                                    {laporan.data.map((item, index) => (
-                                        <tr key={index} className="hover:bg-green-50 transition-colors">
-                                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-700">
-                                                <div className="flex items-center">
-                                                    <FontAwesomeIcon icon={faMapMarkerAlt} className="w-3 h-3 mr-2 text-slate-400" />
-                                                    {item.dusun}
-                                                </div>
-                                            </td>
-                                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-700">
-                                                <div className="flex items-center">
-                                                    <FontAwesomeIcon icon={faUsers} className="w-3 h-3 mr-2 text-slate-400" />
-                                                    {item.jumlahMuzaki} Orang
-                                                </div>
-                                            </td>
-                                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-green-700">
-                                                {formatCurrency(item.infaqTetap)}
-                                            </td>
-                                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700">
-                                                {formatCurrency(item.infaqTidakTetap)}
-                                            </td>
-                                            <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-purple-700">
-                                                {formatCurrency(item.total)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot className="bg-green-50 border-t border-green-200">
-                                    <tr>
-                                        <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-800">
-                                            TOTAL
-                                        </td>
-                                        <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-800">
-                                            {laporan.totals.totalMuzaki} Orang
-                                        </td>
-                                        <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-green-700">
-                                            {formatCurrency(laporan.totals.totalInfaqTetap)}
-                                        </td>
-                                        <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700">
-                                            {formatCurrency(laporan.totals.totalInfaqTidakTetap)}
-                                        </td>
-                                        <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-purple-700">
-                                            {formatCurrency(laporan.totals.totalSeluruh)}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
+                    <div className="space-y-6">
+                        {laporan.data.map((dateGroup, groupIndex) => (
+                            <div key={groupIndex} className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-green-200 overflow-hidden">
+                                {/* Date Header */}
+                                <div className="bg-green-50 border-b border-green-200 px-4 py-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-green-700 mr-2" />
+                                            <h3 className="text-sm sm:text-base font-semibold text-slate-800">
+                                                {formatDate(dateGroup.fullDate)}
+                                            </h3>
+                                        </div>
+                                        <div className="text-xs text-slate-600">
+                                            {dateGroup.items.length} Transaksi
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Table for this date */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[600px]">
+                                        <thead className="bg-green-50 border-b border-green-200">
+                                            <tr>
+                                                <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                                                    Dusun
+                                                </th>
+                                                <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                                                    Jumlah Muzaki
+                                                </th>
+                                                <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                                                    Infaq Tetap
+                                                </th>
+                                                <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                                                    Infaq Tidak Tetap
+                                                </th>
+                                                <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                                                    Total
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-green-200">
+                                            {dateGroup.dusunData.map((item, index) => (
+                                                <tr key={index} className="hover:bg-green-50 transition-colors">
+                                                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-700">
+                                                        <div className="flex items-center">
+                                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="w-3 h-3 mr-2 text-slate-400" />
+                                                            {item.dusun}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-700">
+                                                        <div className="flex items-center">
+                                                            <FontAwesomeIcon icon={faUsers} className="w-3 h-3 mr-2 text-slate-400" />
+                                                            {item.jumlahMuzaki} Orang
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-green-700">
+                                                        {formatCurrency(item.infaqTetap)}
+                                                    </td>
+                                                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700">
+                                                        {formatCurrency(item.infaqTidakTetap)}
+                                                    </td>
+                                                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-purple-700">
+                                                        {formatCurrency(item.total)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className="bg-green-50 border-t border-green-200">
+                                            <tr>
+                                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-800">
+                                                    TOTAL
+                                                </td>
+                                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-800">
+                                                    {dateGroup.totals.totalMuzaki} Orang
+                                                </td>
+                                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-green-700">
+                                                    {formatCurrency(dateGroup.totals.totalInfaqTetap)}
+                                                </td>
+                                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700">
+                                                    {formatCurrency(dateGroup.totals.totalInfaqTidakTetap)}
+                                                </td>
+                                                <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-purple-700">
+                                                    {formatCurrency(dateGroup.totals.totalSeluruh)}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
