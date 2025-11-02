@@ -760,9 +760,6 @@ const Laporan = () => {
                                                 {formatDate(dateGroup.fullDate)}
                                             </h3>
                                         </div>
-                                        <div className="text-xs text-slate-600">
-                                            {dateGroup.items.length} Transaksi
-                                        </div>
                                     </div>
                                 </div>
 
