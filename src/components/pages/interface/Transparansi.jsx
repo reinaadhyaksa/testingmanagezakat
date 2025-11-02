@@ -192,7 +192,7 @@ const Transparansi = () => {
                             <FontAwesomeIcon icon={faBalanceScale} className="text-blue-600 w-3 h-3 sm:w-4 sm:h-4" />
                         </div>
                         <div>
-                            <p className="text-xs sm:text-sm text-slate-600">Saldo Total</p>
+                            <p className="text-xs sm:text-sm text-slate-600">Total Saldo</p>
                             <p className={`text-base sm:text-lg md:text-xl font-bold ${getSaldoColor(totalSaldo)}`}>
                                 {loading ? 'Loading...' : formatCurrency(totalSaldo)}
                             </p>
